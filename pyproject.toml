@@ -55,3 +55,11 @@ mscp = "mscp.__main__:main"
 
 [tool.hatch.version]
 path = "src/mscp/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mscp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+config = "mscp/config"
+schema = "mscp/schema"
+Gemfile = "mscp/Gemfile"

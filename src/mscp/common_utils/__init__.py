@@ -1,6 +1,6 @@
 # common_utils/__init__.py
 
-from .config import config
+from .config import CONFIG_PATH, config
 from .constants import SCHEMA_PATH, APPLE_OS, NIX_OS
 from .customization import collect_overrides
 from .file_handling import (

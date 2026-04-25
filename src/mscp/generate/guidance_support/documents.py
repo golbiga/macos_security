@@ -2,7 +2,9 @@
 
 # Standard python modules
 import gettext
+import os
 import re
+import shlex
 import sys
 import time
 from collections.abc import Mapping
@@ -24,6 +26,7 @@ from ...common_utils import (
     run_command,
     NIX_OS,
 )
+from ...common_utils.paths import resource_path, source_project_root, user_config_root
 
 
 def group_ulify(elements: list[str]) -> str:
@@ -489,31 +492,48 @@ def generate_documents(
     )
 
     if output_format == "adoc":
+        gemfile_path = resource_path("Gemfile")
+        source_root = source_project_root()
+        gem_path = (
+            source_root / "mscp_gems" if source_root else user_config_root() / "mscp_gems"
+        )
+        bundle_env = os.environ.copy()
+        bundle_env["BUNDLE_GEMFILE"] = str(gemfile_path)
+        bundle_env["BUNDLE_PATH"] = str(gem_path)
+
         spinner.spinner = Spinners.dots
         spinner.text = "Checking for asciidoctor components"
         time.sleep(1)
-        asciidoctor_path, asciidoctor_err = run_command("bundle show asciidoctor")
+        asciidoctor_path, asciidoctor_err = run_command(
+            "bundle show asciidoctor", env=bundle_env
+        )
         asciidoctor_pdf_path, asciidoctor_pdf_err = run_command(
-            "bundle show asciidoctor-pdf"
+            "bundle show asciidoctor-pdf", env=bundle_env
         )
 
         if asciidoctor_err or asciidoctor_pdf_err:
             spinner.text = "Installing missing asciidoctor components"
             time.sleep(1)
-            output, error = run_command(
-                "bundle install --gemfile Gemfile --path mscp_gems --binstubs"
-            )
+            output, error = run_command("bundle install", env=bundle_env)
             if error:
                 logger.error(f"Bundle install failed: {error}")
-                sys.exit()
+                print(f"Bundle install failed: {error}", file=sys.stderr)
+                sys.exit(1)
         spinner.text = "Generating HTML file from adoc"
         time.sleep(1)
-        output, error = run_command(f"bundle exec asciidoctor {output_file}")
+        quoted_output_file = shlex.quote(str(output_file))
+        output, error = run_command(
+            f"bundle exec asciidoctor {quoted_output_file}", env=bundle_env
+        )
         if error:
             logger.error(f"Error converting to ADOC: {error}")
-            sys.exit()
+            print(f"Error converting to ADOC: {error}", file=sys.stderr)
+            sys.exit(1)
         spinner.text = "Generating PDF file from adoc"
-        output, error = run_command(f"bundle exec asciidoctor-pdf {output_file}")
+        output, error = run_command(
+            f"bundle exec asciidoctor-pdf {quoted_output_file}", env=bundle_env
+        )
         if error:
             logger.error(f"Error converting to ADOC: {error}")
-            sys.exit()
+            print(f"Error converting to PDF: {error}", file=sys.stderr)
+            sys.exit(1)

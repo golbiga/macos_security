@@ -16,7 +16,7 @@ defaults:
   md_templates_dir: "config/default/templates/markdown"
   misc_dir: "config/default/misc"
   root_dir: "config/default"
-  rules_dir: "rules"
+  rules_dir: "config/default/rules"
   scap_templates_dir: "config/default/templates/scap"
   shell_template_dir: "config/default/templates/shell_scripts"
   sections_dir: "config/default/sections"

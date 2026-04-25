@@ -3,13 +3,18 @@
 # Standard python modules
 import shlex
 import subprocess
+from collections.abc import Mapping
 
 # Local python modules
 from .logger_instance import logger
 
 
 def run_command(
-    command: str, capture_output: bool = True, text: bool = True, check: bool = True
+    command: str,
+    capture_output: bool = True,
+    text: bool = True,
+    check: bool = True,
+    env: Mapping[str, str] | None = None,
 ) -> tuple[str | None, str | None]:
     """
     Executes a shell command and returns its output or an error message.
@@ -25,7 +30,7 @@ def run_command(
         logger.info("Executing command: {}", command)
 
         result = subprocess.run(
-            args, capture_output=capture_output, text=text, check=check
+            args, capture_output=capture_output, text=text, check=check, env=env
         )
 
         logger.success("Command executed successfully: {}", command)
@@ -37,14 +42,15 @@ def run_command(
             return None, None
 
     except subprocess.CalledProcessError as e:
+        error_output = e.stderr or e.stdout or str(e)
         logger.error(
             "Command '{}' failed with return code {}: {}",
             command,
             e.returncode,
-            e.stderr,
+            error_output,
         )
 
-        return None, f"Command failed: {e.stderr}"
+        return None, f"Command failed: {error_output}"
 
     except OSError as e:
         logger.error("OS error when running command: {}", command)

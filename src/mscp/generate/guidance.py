@@ -317,5 +317,11 @@ def generate_guidance(sp: Yaspin, args: argparse.Namespace) -> None:
         language=args.language,
     )
 
-    sp.text = f"MSCP DOCUMENT GENERATION COMPLETE! All of the documents can be found in this folder: {build_path}/"
-    sp.ok("✔")
+    completion_message = (
+        "MSCP DOCUMENT GENERATION COMPLETE! "
+        f"All of the documents can be found in this folder: {build_path}/"
+    )
+    if getattr(sp, "mscp_active", False):
+        sp.stop()
+        sp.mscp_active = False
+    print(f"✔ {completion_message}")

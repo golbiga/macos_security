@@ -26,6 +26,27 @@ python3 -m pip install --upgrade pip setuptools wheel
 python3 -m pip install --upgrade -r requirements.txt
 ```
 
+### Install as a uv tool
+
+```bash
+uv tool install .
+```
+
+After installation, the `mscp` command can be run from any directory. Built-in
+configuration, schemas, templates, images, baselines, rules, and Ruby Gemfiles
+are loaded from the installed package. Generated output, writable custom
+content, and Bundler-installed Ruby gems default to the user's MSCP config
+directory.
+
+Optional path overrides:
+
+```bash
+MSCP_CONFIG_FILE=/path/to/config.yaml mscp -h
+MSCP_CONFIG_DIR=/path/to/mscp-config mscp -h
+MSCP_CUSTOM_DIR=/path/to/custom mscp -h
+MSCP_OUTPUT_DIR=/path/to/build mscp -h
+```
+
 ## Ruby instructions
 
 ### Setup bundle configuration file

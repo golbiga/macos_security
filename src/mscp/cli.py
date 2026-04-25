@@ -87,13 +87,14 @@ def parse_cli() -> None:
         required=False,
         help=argparse.SUPPRESS,
         action="store_true",
+        default=argparse.SUPPRESS,
     )
 
     parent_parser.add_argument(
         "-v",
         "--verbose",
         action="count",
-        default=0,
+        default=argparse.SUPPRESS,
         help="increase the amount of logging to stdout (-v, -vv)",
     )
 
@@ -531,19 +532,19 @@ compliance script (e.g. disa_stig, cis.benchmark)
     try:
         args = parser.parse_args()
 
-        logger = set_logger(verbosity=args.verbose)
+        logger = set_logger(verbosity=getattr(args, "verbose", 0))
     except argparse.ArgumentError as e:
         logger.error("Argument Error: {}", e)
         parser.print_help()
         sys.exit()
 
-    if args.debug:
+    if getattr(args, "debug", False):
         logger = set_logger(debug=True)
         logger.info("=== Logging level changed ===")
         logger.info("LOGGING LEVEL: DEBUG")
     else:
         logger.info("=== Logging level changed ===")
-        logger.debug("LOGGING LEVEL: CRITICAL")
+        logger.debug("LOGGING VERBOSITY: {}", getattr(args, "verbose", 0))
 
     if not hasattr(args, "func"):
         logger.error("Functionality for {} is not implemented yet.", args.subcommand)

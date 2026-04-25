@@ -11,6 +11,7 @@ import loguru
 
 # Local python modules
 from .logger_instance import logger
+from .paths import source_project_root, user_config_root
 
 verbose_logging: bool = False
 
@@ -31,14 +32,16 @@ def set_logger(debug: bool = False, verbosity: int = 0) -> loguru.Logger:
     log_level: str = "ERROR"
 
     if verbosity == 1:
-        log_level = "WARNING"
-    elif verbosity == 2:
         log_level = "INFO"
-    elif verbosity > 2 or debug:
+    elif verbosity > 1 or debug:
         log_level = "DEBUG"
 
     # formatter = LoguruFormatter()
+    logger.enable("mscp")
+    logger.enable("src.mscp")
     logger.remove()
+    log_dir = (source_project_root() or user_config_root()) / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     logger.configure(
         handlers=[
@@ -48,7 +51,7 @@ def set_logger(debug: bool = False, verbosity: int = 0) -> loguru.Logger:
                 "filter": function_filter,
             },
             {
-                "sink": Path("logs", "mscp.log"),
+                "sink": Path(log_dir, "mscp.log"),
                 "level": "DEBUG",
                 "encoding": "utf-8",
                 "enqueue": True,

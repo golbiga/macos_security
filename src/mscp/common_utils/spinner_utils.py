@@ -17,12 +17,13 @@ def conditional_inject_spinner(**spinner_kwargs):
             suppress = logging_config.verbose_logging
 
             sp = yaspin(**spinner_kwargs)
+            sp.mscp_active = not suppress
             if not suppress:
                 sp.start()
             try:
                 return func(sp, *args, **kwargs)
             finally:
-                if not suppress:
+                if getattr(sp, "mscp_active", False):
                     sp.stop()
 
         return wrapper
