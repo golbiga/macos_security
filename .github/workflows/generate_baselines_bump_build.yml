@@ -41,7 +41,7 @@ jobs:
           import re
           from datetime import date
 
-          with open('config/includes/mscp-data.yaml', 'r') as f:
+          with open('src/mscp/data/includes/mscp-data.yaml', 'r') as f:
               content = f.read()
 
           new_build = None
@@ -60,7 +60,7 @@ jobs:
               content
           )
 
-          with open('config/includes/mscp-data.yaml', 'w') as f:
+          with open('src/mscp/data/includes/mscp-data.yaml', 'w') as f:
               f.write(content)
 
           print(new_build)
@@ -72,7 +72,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add config/includes/mscp-data.yaml
-          git add config/default/baselines
+          git add src/mscp/data/includes/mscp-data.yaml
+          git add src/mscp/data/baselines
           git commit -m "chore: bump build number to ${{ steps.bump.outputs.build }} [skip ci]"
           git push

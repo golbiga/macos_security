@@ -1,4 +1,11 @@
 # mscp/generate/scap.py
+"""SCAP 1.4 / XCCDF / OVAL content generation for the macOS Security Compliance Project.
+
+Provides `generate_scap`, which builds an XCCDF benchmark with profiles and
+rules, an OVAL definitions document with shell-command tests, and (for macOS)
+wraps them into a SCAP 1.4 data-stream XML file.  Standalone XCCDF-only and
+OVAL-only outputs are also supported.
+"""
 
 # Standard python modules
 import argparse
@@ -12,7 +19,7 @@ from xml.dom import minidom
 
 
 # Additional python modules
-from ..common_utils import conditional_inject_spinner
+from ..common_utils import conditional_inject_spinner, create_file
 from yaspin.core import Yaspin
 from yaspin.spinners import Spinners
 
@@ -38,6 +45,20 @@ def pretty_format_xml(xml_string: str) -> str:
 
 
 def disa_stig_rules(stig_id, stig):
+    """Extract the SRG title and Rule ID prefix for a given STIG ID from raw STIG XML text.
+
+    Searches the raw XML string for a ``<title>SRG-…</title>`` element and
+    the matching ``Rule id`` attribute adjacent to *stig_id*, then returns
+    them joined by ``", "``.
+
+    Args:
+        stig_id (str): STIG rule identifier to search for (e.g. ``"SV-257502r858765_rule"``).
+        stig (str): Raw STIG XML text.
+
+    Returns:
+        str: ``"<SRG-title>, <RuleID-prefix>"`` if both are found; partial or
+            empty string otherwise.
+    """
     newtitle = str()
     regex = r"<title>(SRG.*\d)<\/title>.*.{}".format(stig_id)
     matches = re.search(regex, stig)
@@ -57,6 +78,19 @@ def disa_stig_rules(stig_id, stig):
 
 @conditional_inject_spinner()
 def generate_scap(sp: Yaspin, args: argparse.Namespace) -> None:
+    """Generate SCAP, XCCDF, or OVAL output for the specified OS and baseline.
+
+    Collects all rules, builds XCCDF profiles and rules with inline OVAL
+    shell-command checks, and writes the result as a SCAP 1.4 data-stream
+    (macOS only), a standalone XCCDF, or a standalone OVAL file depending
+    on ``args``.
+
+    Args:
+        sp (Yaspin): Spinner instance injected by `conditional_inject_spinner`.
+        args (argparse.Namespace): Parsed CLI arguments. Expected attributes:
+            ``os_name``, ``os_version``, ``baseline``, ``list_tags``,
+            ``oval``, ``xccdf``, ``disa_stig``.
+    """
     sp.spinner = Spinners.dots
     sp.text = "Collecting rule files"
     output_file: Path = Path(config["output_dir"])
@@ -179,6 +213,8 @@ def generate_scap(sp: Yaspin, args: argparse.Namespace) -> None:
             xccdfProfiles = xccdfProfiles + "</Profile>"
 
     for rule in all_rules:
+        if "supplemental" in rule.tags:
+            continue
         if args.baseline != "all_rules":
             if (
                 not rule_has_benchmark_for_version(
@@ -468,6 +504,7 @@ def generate_scap(sp: Yaspin, args: argparse.Namespace) -> None:
                 if rule.result_value == 0:
                     check_existence = "none_exist"
 
+            
             xccdfrules = (
                 xccdfrules
                 + """<Rule id="xccdf_gov.nist.mscp.content_rule_{0}_{1}" selected="false" role="full" severity="{2}" weight="1.0"><title>{3}</title><description>{4}
@@ -699,9 +736,8 @@ def generate_scap(sp: Yaspin, args: argparse.Namespace) -> None:
 
     sp.text = "Writing output files"
     time.sleep(1)
-    with open(output_file, "w") as rite:
-        rite.write(totaloutput)
-        rite.close()
+    
+    create_file(output_file, totaloutput)
 
     sp.text = f"Generated new SCAP file: {output_file}"
     sp.ok("✔")

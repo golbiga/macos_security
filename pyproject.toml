@@ -24,12 +24,13 @@ classifiers = [
   "Topic :: Security",
 ]
 dependencies = [
-  "jinja2>=3.1.5,<4",
+  "jinja2>=3.1.6,<4",
   "loguru>=0.7.3,<1",
-  "lxml>=6.0.0,<7",
+  "lxml>=6.1.0,<7",
   "openpyxl>=3.1.5,<4",
   "numpy>=2.3.0,<3",
   "pandas>=2.3.3,<3",
+  "pillow>=11.2.1,<12",
   "pydantic>=2.12,<3",
   "pyyaml>=6.0.2,<7",
   "jsonschema>=4.23.0,<5",
@@ -60,6 +61,12 @@ path = "src/mscp/__init__.py"
 packages = ["src/mscp"]
 
 [tool.hatch.build.targets.wheel.force-include]
-config = "mscp/config"
 schema = "mscp/schema"
 Gemfile = "mscp/Gemfile"
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/mscp/data/baselines" = "src/mscp/data/baselines"
+"src/mscp/data/rules" = "src/mscp/data/rules"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

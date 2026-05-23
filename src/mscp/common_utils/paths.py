@@ -12,7 +12,7 @@ def source_project_root() -> Path | None:
     for parent in Path(__file__).resolve().parents:
         if (
             (parent / "pyproject.toml").is_file()
-            and (parent / "config" / "config.yaml").is_file()
+            and (parent / "src" / "mscp" / "data" / "config.yaml").is_file()
             and (parent / "src" / "mscp").is_dir()
         ):
             return parent
@@ -29,6 +29,12 @@ def resource_base() -> Path:
 
 def resource_path(*parts: str) -> Path:
     return resource_base().joinpath(*parts)
+
+
+def data_path(*parts: str) -> Path:
+    if source_root := source_project_root():
+        return source_root.joinpath("src", "mscp", "data", *parts)
+    return package_root().joinpath("data", *parts)
 
 
 def user_config_root() -> Path:

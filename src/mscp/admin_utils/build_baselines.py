@@ -1,4 +1,12 @@
 # mscp/admin_utils/build_all_baselines.py
+"""Bulk-rebuild every supported baseline.
+
+Wires up the ``mscp admin baselines`` subcommand: discovers all rules
+for the requested platform, derives the set of benchmarks and tags
+they cover, then drives `generate_baseline` once per
+benchmark-and-platform pair plus once per remaining tag-and-platform
+pair.
+"""
 
 # Standard python modules
 import argparse
@@ -21,11 +29,32 @@ from ..generate.baseline import (
 
 
 def build_all_baselines(args: argparse.Namespace) -> None:
-    """Build all baselines supported in MSCP"""
+    """Regenerate every default baseline file for the configured platforms.
+
+    Clears `config["baseline_dir"]`, collects every rule for
+    `args.os_name` / `args.os_version`, derives the set of benchmarks and
+    tags from those rules, and then calls `generate_baseline` once per
+    discovered benchmark (per its own platform list) and once per
+    remaining tag for every supported platform in
+    `mscp_data["versions"]["platforms"]`. A small set of housekeeping tags
+    (``arm64``, ``i368``, ``inherent``, ``manual``, ``n_a``, ``none``,
+    ``permanent``) is excluded from the second pass.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments. Required fields:
+            ``os_name``, ``os_version``. The function additionally sets
+            ``tailor``, ``list_tags``, ``controls``, ``keyword``, and
+            ``os_name`` on the namespace as it iterates — callers should
+            treat the namespace as scratch space.
+
+    Side Effects:
+        Deletes the contents of the default baseline directory and writes
+        new baseline YAML files into it.
+    """
     logger.info("Building all supported baselines...")
 
     # clear existing default baselines
-    baselines_dir = Path(config["defaults"].get("baseline_dir", ""))
+    baselines_dir = Path(config.get("baseline_dir", ""))
     remove_dir_contents(baselines_dir)
 
     # set default args expected by generate_baseline
@@ -34,7 +63,17 @@ def build_all_baselines(args: argparse.Namespace) -> None:
     args.controls = False
 
     # exclude generating baselines for these keys
-    excluded_tags = {"arm64", "i368", "inherent", "manual", "n_a", "none", "permanent"}
+    excluded_tags = {
+        "arm64",
+        "i386",
+        "inherent",
+        "manual",
+        "n_a",
+        "none",
+        "permanent",
+        "supplemental",
+        "800-53r5_privacy",
+    }
 
     all_rules: list[Macsecurityrule] = Macsecurityrule.collect_all_rules(
         args.os_name, args.os_version, args.tailor, parent_values="Default"

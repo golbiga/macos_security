@@ -13,7 +13,7 @@ import yaml
 
 # Local python modules
 from .logger_instance import logger
-from .paths import resource_path
+from .paths import data_path
 
 
 ENCODING: str = "utf-8"
@@ -107,7 +107,7 @@ def open_yaml(
     """
     # set up localization for all yaml files
     domain: str = "messages"
-    localedir: str = str(resource_path("config", "locales"))
+    localedir: str = str(data_path("locales"))
 
     t = gettext.translation(
         domain,

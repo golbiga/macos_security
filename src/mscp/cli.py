@@ -1,4 +1,12 @@
 # mscp/cli.py
+"""Command-line interface for mSCP.
+
+Defines `parse_cli`, the top-level entry point invoked from
+:mod:`mscp.__main__`. Builds an `argparse` tree with subcommands
+``baseline`` / ``guidance`` / ``mapping`` / ``scap`` / ``admin`` (the
+last with its own nested utilities) and dispatches to the matching
+function in `mscp.generate` or `mscp.admin_utils`.
+"""
 
 # Standard python modules
 import argparse
@@ -7,12 +15,16 @@ import platform
 from pathlib import Path
 
 # Local python modules
-from .admin_utils import build_all_baselines, add_new_rule
+from .admin_utils import (
+    build_all_baselines,
+    add_new_rule,
+    generate_mscp_banners,
+)
 from .common_utils import (
     logger,
     set_logger,
     validate_yaml_file,
-    supported_languages,
+    get_supported_languages,
     mscp_data,
     config,
     validate_rule_folder_structure,
@@ -28,22 +40,33 @@ from .generate import (
 
 
 class Customparser(argparse.ArgumentParser):
-    """
-    Customparser is a subclass of argparse.ArgumentParser that overrides the error method
-    to log an error message, print the help message, and exit the program with a status code of 2.
+    """`argparse.ArgumentParser` that logs errors via `loguru`.
 
-    Methods:
-        error(message: str) -> None:
-            Logs an error message, prints the help message, and exits the program with status code 2.
+    Overrides `error` so usage failures are routed through the mSCP logger
+    (instead of stderr) before the help text is printed and the process
+    exits with status 2.
     """
 
     def error(self, message: str) -> None:
+        """Log `message` via `loguru`, print help, and exit with status 2.
+
+        Args:
+            message (str): Error message reported by `argparse`.
+        """
         logger.error(f"Argument Error: {message}")
         self.print_help()
         sys.exit(2)
 
 
 class SmartFormatter(argparse.HelpFormatter):
+    """Help formatter with two minor tweaks for the mSCP CLI.
+
+    - Single-letter / single-form options are indented to align with the
+      long-form options for readability.
+    - Help strings prefixed with ``"R|"`` are emitted with their original
+      newlines preserved (a common ``argparse`` recipe for raw text).
+    """
+
     def _format_action_invocation(self, action):
         # Get the default invocation (e.g., "-p PROFILE", "--profile PROFILE")
         invocation = super()._format_action_invocation(action)
@@ -63,6 +86,17 @@ class SmartFormatter(argparse.HelpFormatter):
 
 
 def get_macos_version() -> float:
+    """Return the running host's major macOS version as a float.
+
+    Used as the default for the ``--os_version`` flag so the CLI assumes
+    the current host's version unless overridden. Falls back to ``26.0``
+    when `platform.mac_ver` returns an empty string (e.g. when run on a
+    non-macOS host).
+
+    Returns:
+        float: Major version (e.g. ``15.0``), or ``26.0`` on a non-macOS
+            host.
+    """
     version_str, _, _ = platform.mac_ver()
     if version_str:
         major = int(version_str.split(".")[0])
@@ -72,6 +106,18 @@ def get_macos_version() -> float:
 
 
 def validate_file(arg: str) -> Path | None:
+    """`argparse` type validator: ensure ``arg`` points at an existing file.
+
+    Used as the ``type=`` argument on flags that take a path. Logs an
+    error and calls `sys.exit` if the path doesn't resolve to a file.
+
+    Args:
+        arg (str): Raw command-line argument value.
+
+    Returns:
+        Path | None: The validated `Path`, or never returns when the file
+            is missing (process exits).
+    """
     if (file := Path(arg)).is_file():
         return file
     else:
@@ -80,6 +126,19 @@ def validate_file(arg: str) -> Path | None:
 
 
 def parse_cli() -> None:
+    """Build the mSCP argument parser, parse `sys.argv`, and dispatch.
+
+    Constructs the top-level parser plus the ``baseline``, ``guidance``,
+    ``mapping``, ``scap``, and ``admin`` subcommands (each with its own
+    flags), applies log-verbosity overrides, validates the platform/OS
+    arguments (rejects unsupported macOS / iOS versions), and then calls
+    the subcommand's bound ``func`` with the parsed `argparse.Namespace`.
+
+    Side Effects:
+        Reads ``sys.argv``; configures the global mSCP logger;
+        mutates the global `config` dict for ``output_dir`` / ``rules_dir``;
+        may call `sys.exit` on validation failure.
+    """
     parent_parser = Customparser()
     parent_parser.add_argument(
         "-D",
@@ -99,7 +158,7 @@ def parse_cli() -> None:
     )
 
     parser = Customparser(
-        description="command-line tool for generating baseline and compliance documents for the macOS Security Compliance Project",
+        description="command-line interface for generating baseline and compliance documents for the macOS Security Compliance Project",
         prog="mscp",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         parents=[parent_parser],
@@ -116,7 +175,7 @@ def parse_cli() -> None:
 
     parser.add_argument(
         "--os_name",
-        choices=["macos", "ios", "visionos", "ubuntu"],
+        choices=["macos", "ios", "visionos"],
         default="macos",
         help="operating system to be referenced when generating guidance",
         type=str,
@@ -132,9 +191,18 @@ def parse_cli() -> None:
     parser.add_argument(
         "-R",
         "--rules_dir",
-        default=config["defaults"]["rules_dir"],
+        default=config["rules_dir"],
         type=validate_rule_folder_structure,
         help="Path to directory containing the library of rule files.",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output_dir",
+        default=config["output_dir"],
+        type=Path,
+        metavar="PATH",
+        help="Path to output directory.",
     )
 
     # Sub Parsers for individual commands
@@ -222,7 +290,7 @@ baseline files are generated by the `mscp.py baseline` command""",
         default="en",
         help="generate guidance using a supported language",
         action="store",
-        choices=supported_languages,
+        choices=get_supported_languages(),
     )
     guidance_parser.add_argument(
         "-M",
@@ -454,6 +522,14 @@ compliance script (e.g. disa_stig, cis.benchmark)
     )
     add_rule_parser.set_defaults(func=add_new_rule)
 
+    generate_banners_parser = admin_subparsers.add_parser(
+        "banners",
+        parents=[parent_parser],
+        help="generate MSCP banners with the updated color scheme for use in documentation and other collateral",
+        add_help=False,
+    )
+    generate_banners_parser.set_defaults(func=generate_mscp_banners)
+
     validate_parser: argparse.ArgumentParser = admin_subparsers.add_parser(
         "validate",
         help="validates the YAML files against the mscp_rule.json schema found in the rules and custom directories",
@@ -528,11 +604,13 @@ compliance script (e.g. disa_stig, cis.benchmark)
         action="store_true",
         help="Enable the flag for fuzzy matches in translations.",
     )
-
     try:
         args = parser.parse_args()
 
         logger = set_logger(verbosity=getattr(args, "verbose", 0))
+
+        if args.output_dir:
+            config["output_dir"] = str(args.output_dir.expanduser().resolve())
     except argparse.ArgumentError as e:
         logger.error("Argument Error: {}", e)
         parser.print_help()
@@ -563,8 +641,8 @@ compliance script (e.g. disa_stig, cis.benchmark)
         )
         sys.exit()
 
-    if not args.rules_dir == config["defaults"]["rules_dir"]:
-        config["defaults"]["rules_dir"] = args.rules_dir
+    if not args.rules_dir == config["rules_dir"]:
+        config["rules_dir"] = args.rules_dir
 
     if args.subcommand == "guidance":
         if args.os_name != "macos" and args.script:
@@ -583,12 +661,3 @@ compliance script (e.g. disa_stig, cis.benchmark)
             sys.exit()
 
     args.func(args)
-
-
-if __name__ == "__main__":
-    logger.enable("mscp")
-    logger = set_logger()
-    logger.info("=== Logging Initialized ===")
-    logger.info("LOGGING LEVEL: WARNING")
-
-    sys.exit(parse_cli())
